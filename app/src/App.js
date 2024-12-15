@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import { collection, getDocs, query, where, db } from "./firebase";
-import ViewExpenses from "./ViewExpenses"; // Make sure this is your ViewExpenses component
-import BillForm from "./BillForm";
+import { useEffect, useState } from "react";
+import { Route, Routes } from "react-router-dom";
 import "./App.css";
+import { collection, db, getDocs, query, where } from "./firebase";
+import ListOfBills from "./ListOfBills";
+import ViewExpenses from "./ViewExpenses";
 
 function App() {
   // State for managing modal visibility
@@ -109,176 +110,10 @@ function App() {
         </div>
       </header>
       <main>
-        <div className="container d-flex flex-row align-items-center justify-content-between">
-          <button
-            className="btn btn-md btn-primary mt-2"
-            onClick={toggleExpensesModal}
-          >
-            View Expenses
-          </button>
-          <button className="btn btn-md btn-primary mt-2" onClick={toggleModal}>
-            Add
-          </button>
-        </div>
-        <br />
-        {/* Search field to filter by Waybill No */}
-        <div className="container mb-4">
-          <input
-            type="number"
-            className="form-control"
-            placeholder="Search by Waybill No"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)} // Set search query
-          />
-        </div>
-
-        {/* View Expenses Modal */}
-        <div
-          className={`modal fade ${isExpensesModalOpen ? "show" : ""}`}
-          tabIndex="-1"
-          aria-labelledby="viewExpensesModalLabel"
-          aria-hidden={!isExpensesModalOpen}
-          style={{ display: isExpensesModalOpen ? "block" : "none" }}
-        >
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title" id="viewExpensesModalLabel">
-                  View Expenses
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  aria-label="Close"
-                  onClick={toggleExpensesModal}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label htmlFor="waybillNo">Select Waybill No</label>
-                  <select
-                    id="waybillNo"
-                    className="form-control"
-                    value={selectedWaybillNo}
-                    onChange={(e) => setSelectedWaybillNo(e.target.value)}
-                  >
-                    <option value="">Select Waybill No</option>
-                    {waybillNos.map((waybillNo, index) => (
-                      <option key={index} value={waybillNo}>
-                        {waybillNo}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {selectedWaybillNo && <ViewExpenses details={details} />}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Add Form Modal */}
-        <div
-          className={`modal fade ${isModalOpen ? "show" : ""}`}
-          tabIndex="-1"
-          aria-labelledby="exampleModalLabel"
-          aria-hidden={!isModalOpen}
-          style={{ display: isModalOpen ? "block" : "none" }}
-        >
-          <div className="modal-dialog modal-xl">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title" id="exampleModalLabel">
-                  Bill Form
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  data-bs-dismiss="modal"
-                  aria-label="Close"
-                  onClick={toggleModal}
-                ></button>
-              </div>
-              <div className="modal-body">
-                <BillForm />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Data Table */}
-        <div className="container">
-          <table className="table table-bordered">
-            <thead>
-              <tr>
-                <th>Waybill No</th>
-                <th>Shipper Name</th>
-                <th>Charges</th>
-                <th>Mode of Transport</th>
-                <th>Mode of Service</th>
-                <th>Others</th>
-                <th>Name of Consignee, Origin, Destination</th>
-                <th>Quantity, Description, Volume</th>
-                <th>Volume</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {details.map((detail, index) => {
-                const totalCharges = calculateTotalCharges(
-                  detail.charges,
-                  detail.others,
-                  detail.rows
-                );
-                return (
-                  <tr key={index}>
-                    <td>{detail.waybillNo}</td>
-                    <td>{detail.shipperName}</td>
-                    <td>
-                      {detail.charges &&
-                        Object.entries(detail.charges).map(
-                          ([key, value], idx) => (
-                            <div key={idx}>
-                              {key}: {value}
-                            </div>
-                          )
-                        )}
-                    </td>
-                    <td>{getTrueModes(detail.modeOfTransport)}</td>
-                    <td>{getTrueModes(detail.modeOfService)}</td>
-                    <td>
-                      {detail.others &&
-                        detail.others.map((other, idx) => (
-                          <div key={idx}>
-                            {other.amount} - {other.description}
-                          </div>
-                        ))}
-                    </td>
-                    <td>
-                      {detail.shipmentDetails
-                        ? `Consignee: ${detail.shipmentDetails.consigneeName}, ${detail.shipmentDetails.origin} to ${detail.shipmentDetails.destination}`
-                        : ""}
-                    </td>
-                    <td>
-                      {detail.rows &&
-                        detail.rows.map((row, idx) => (
-                          <div key={idx}>
-                            {row.description}: {row.quantity}
-                          </div>
-                        ))}
-                    </td>
-                    <td>
-                      {detail.rows &&
-                        detail.rows.map((row, idx) => (
-                          <div key={idx}>{row.volume}</div>
-                        ))}
-                    </td>
-                    <td>{totalCharges.toLocaleString()}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Routes>
+          <Route path="/" element={<ListOfBills />} />
+          <Route path="/view-expense" element={<ViewExpenses />} />
+        </Routes>
       </main>
 
       <footer className="bg-dark text-white py-3">
