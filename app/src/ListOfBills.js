@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./App.css";
 import BillForm from "./BillForm";
 import { collection, db, getDocs, orderBy, query, where } from "./firebase";
+import Select from "react-select";
 
 function ListOfBills() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ function ListOfBills() {
   const [waybillNos, setWaybillNos] = useState([]);
   const [selectedWaybillNo, setSelectedWaybillNo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [waybillSearch, setWaybillSearch] = useState("");
 
   // Toggle visibility for Add Form modal
   const toggleModal = () => setIsModalOpen(!isModalOpen);
@@ -134,6 +136,11 @@ function ListOfBills() {
     }
   };
 
+  // Filter waybillNos based on search input
+  const filteredWaybillNos = waybillNos.filter(
+    (waybill) => waybill.toString().includes(waybillSearch) // Filter waybillNos
+  );
+
   return (
     <div>
       <div className="container d-flex flex-row align-items-center justify-content-between">
@@ -178,6 +185,29 @@ function ListOfBills() {
             <div className="modal-body">
               <div className="form-group">
                 <label htmlFor="waybillNo">Select Waybill No</label>
+                <Select
+                  id="waybillNo"
+                  options={filteredWaybillNos.map((waybill) => ({
+                    value: waybill,
+                    label: waybill,
+                  }))} // Format waybillNos for react-select
+                  value={
+                    selectedWaybillNo
+                      ? { value: selectedWaybillNo, label: selectedWaybillNo }
+                      : null
+                  } // Display selected value
+                  onChange={(selectedOption) =>
+                    setSelectedWaybillNo(
+                      selectedOption ? selectedOption.value : ""
+                    )
+                  }
+                  placeholder="Search or Select Waybill No"
+                  isSearchable
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="waybillNo">Select Waybill No</label>
                 <select
                   id="waybillNo"
                   className="form-control"
@@ -185,7 +215,7 @@ function ListOfBills() {
                   onChange={(e) => setSelectedWaybillNo(e.target.value)}
                 >
                   <option value="">Select Waybill No</option>
-                  {waybillNos.map((waybillNo, index) => (
+                  {filteredWaybillNos.map((waybillNo, index) => (
                     <option key={index} value={waybillNo}>
                       {waybillNo}
                     </option>
