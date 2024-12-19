@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Select from "react-select";
 import "./App.css";
 import BillForm from "./BillForm";
 import { collection, db, getDocs, orderBy, query, where } from "./firebase";
-import Select from "react-select";
 
 function ListOfBills() {
   const navigate = useNavigate();
@@ -206,22 +206,6 @@ function ListOfBills() {
                 />
               </div>
 
-              <div className="form-group">
-                <label htmlFor="waybillNo">Select Waybill No</label>
-                <select
-                  id="waybillNo"
-                  className="form-control"
-                  value={selectedWaybillNo}
-                  onChange={(e) => setSelectedWaybillNo(e.target.value)}
-                >
-                  <option value="">Select Waybill No</option>
-                  {filteredWaybillNos.map((waybillNo, index) => (
-                    <option key={index} value={waybillNo}>
-                      {waybillNo}
-                    </option>
-                  ))}
-                </select>
-              </div>
               <button
                 className="btn btn-primary mt-3"
                 onClick={navigateToViewExpenses}
@@ -232,7 +216,6 @@ function ListOfBills() {
           </div>
         </div>
       </div>
-
       {/* Add Form Modal */}
       <div
         className={`modal fade ${isModalOpen ? "show" : ""}`}

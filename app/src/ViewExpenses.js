@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { collection, db, getDocs, query, where } from "./firebase";
+import { addDoc, collection, db, getDocs, query, where } from "./firebase";
 
 function ViewExpense() {
   const location = useLocation();
   const navigate = useNavigate();
   const { waybillNo } = location.state || {}; // Retrieve waybillNo from state
   const [details, setDetails] = useState([]);
+  const [profitData, setProfitData] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [referralFee, setReferralFee] = useState(0);
   const [taxes, setTaxes] = useState({ bir: 0, serviceTax: 0 });
@@ -19,7 +20,6 @@ function ViewExpense() {
     { name: "Meals", amount: 0 },
   ]);
 
-  // Helper function to extract true modes from an object
   const getTrueModes = (modeObject) => {
     if (modeObject && typeof modeObject === "object") {
       return Object.entries(modeObject)
@@ -30,7 +30,6 @@ function ViewExpense() {
     return "";
   };
 
-  // Calculate total charges
   const calculateTotalCharges = (charges, others, rows) => {
     let total = 0;
 
@@ -56,46 +55,63 @@ function ViewExpense() {
     return total;
   };
 
-  // Handle adding a new variable expense field
   const handleAddExpense = () => {
     setVariableExpenses([...variableExpenses, { name: "", amount: 0 }]);
   };
 
-  // Handle change in variable expense input
   const handleExpenseChange = (index, field, value) => {
     const updatedExpenses = [...variableExpenses];
     updatedExpenses[index][field] = value;
     setVariableExpenses(updatedExpenses);
   };
 
-  const handleCalculateProfit = () => {
-    // First, calculate the total charges from the table
+  const handleCalculateProfit = async () => {
     const totalCharges = details.reduce((acc, detail) => {
       return (
         acc + calculateTotalCharges(detail.charges, detail.others, detail.rows)
       );
     }, 0);
 
-    // Calculate the total expenses from the variable expenses
     const totalExpenses = variableExpenses.reduce(
       (acc, exp) => acc + parseFloat(exp.amount || 0),
       0
     );
 
-    // Calculate the total taxes (BIR + Service Tax) based on the total charges
-    const totalTaxes = ((taxes.bir + taxes.serviceTax) / 100) * totalCharges;
+    const totalTaxes =
+      ((parseFloat(taxes.bir) + parseFloat(taxes.serviceTax)) / 100) *
+      totalCharges;
 
-    // Calculate the profit by subtracting expenses, taxes, and referral fee from total charges
-    const profit = totalCharges - totalExpenses - totalTaxes - referralFee;
+    const profit =
+      totalCharges - (totalExpenses + totalTaxes + parseFloat(referralFee));
 
-    // Output the calculated profit
     console.log("Calculated Profit:", profit);
+    try {
+      // Save the profit and inputs to the Firebase 'profit' collection
+      const profitData = {
+        waybillNo: waybillNo || "Unknown", // Ensure waybillNo is included
+        totalCharges,
+        totalExpenses,
+        totalTaxes,
+        referralFee: parseFloat(referralFee),
+        profit,
+        variableExpenses, // Save the array of expenses
+        timestamp: new Date().toISOString(), // Add a timestamp for reference
+      };
+
+      const profitRef = collection(db, "profit");
+      await addDoc(profitRef, profitData);
+
+      alert("Profit data saved successfully!");
+      setShowModal(false); // Close the modal after saving
+    } catch (error) {
+      console.error("Error saving profit data:", error);
+      alert("Failed to save profit data. Please try again.");
+    }
   };
 
-  // Fetch data based on the selected waybillNo
   useEffect(() => {
     const fetchDetails = async () => {
-      if (!waybillNo) return; // If no waybillNo, do nothing
+      if (!waybillNo) return;
 
       const detailsRef = collection(db, "details_form");
       const q = query(detailsRef, where("waybillNo", "==", waybillNo));
@@ -106,7 +122,7 @@ function ViewExpense() {
           id: doc.id,
           ...doc.data(),
         }));
-        setDetails(data); // Set the fetched details
+        setDetails(data);
       } catch (e) {
         console.error("Error fetching documents: ", e);
       }
@@ -115,10 +131,26 @@ function ViewExpense() {
     fetchDetails();
   }, [waybillNo]);
 
-  // Function to recursively render nested objects in charges
+  useEffect(() => {
+    const fetchProfitData = async () => {
+      try {
+        const profitRef = collection(db, "profit");
+        const querySnapshot = await getDocs(profitRef);
+        const data = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setProfitData(data);
+      } catch (error) {
+        console.error("Error fetching profit data:", error);
+      }
+    };
+
+    fetchProfitData();
+  }, []);
+
   const renderCharges = (charges) => {
     return Object.entries(charges).map(([key, value], idx) => {
-      // If the value is an object, call renderCharges recursively
       if (typeof value === "object") {
         return (
           <div key={idx}>
@@ -218,8 +250,46 @@ function ViewExpense() {
           })}
         </tbody>
       </table>
+      <div className="row">
+        {/* <h2>Profit Data</h2> */}
+        {profitData.length > 0 ? (
+          <ul className="list-group">
+            {profitData.map((profit, index) => (
+              <li className="list-group-item" key={profit.id}>
+                <strong>Total Charges:</strong>{" "}
+                {profit.totalCharges.toLocaleString()} <br />
+                <strong>Total Expenses:</strong>{" "}
+                {profit.totalExpenses.toLocaleString()} <br />
+                <strong>Total Taxes:</strong>{" "}
+                {profit.totalTaxes.toLocaleString()} <br />
+                <strong>Referral Fee:</strong>{" "}
+                {profit.referralFee.toLocaleString()} <br />
+                <strong>Profit:</strong> {profit.profit.toLocaleString()} <br />
+                <strong>Variable Expenses:</strong>
+                <ul className="list-group list-group-flush">
+                  {profit.variableExpenses.map((expense, idx) => (
+                    <li
+                      key={idx}
+                      className="list-group-item d-flex justify-content-between"
+                    >
+                      <span>{expense.name}</span>
+                      <span>{expense.amount.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+                {/* <small className="text-muted">
+                  <strong>Timestamp:</strong>{" "}
+                  {new Date(profit.timestamp).toLocaleString()}
+                </small> */}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No profit data available.</p>
+        )}
+      </div>
+      <br />
 
-      {/* Profit Calculation Modal */}
       {showModal && (
         <div className="modal" style={{ display: "block" }}>
           <div className="modal-dialog">
@@ -232,7 +302,7 @@ function ViewExpense() {
               </div>
               <div className="modal-body">
                 <div>
-                  <label>Referral Fee (2%)</label>
+                  <label>Referral Fee</label>
                   <input
                     type="number"
                     value={referralFee}
@@ -241,7 +311,7 @@ function ViewExpense() {
                   />
                 </div>
                 <div>
-                  <label>BIR Tax (3%)</label>
+                  <label>BIR Tax</label>
                   <input
                     type="number"
                     value={taxes.bir}
@@ -252,7 +322,7 @@ function ViewExpense() {
                   />
                 </div>
                 <div>
-                  <label>Service Tax (2%)</label>
+                  <label>Service Tax</label>
                   <input
                     type="number"
                     value={taxes.serviceTax}
@@ -262,7 +332,6 @@ function ViewExpense() {
                     className="form-control"
                   />
                 </div>
-
                 <div>
                   <label>Variable Expenses</label>
                   {variableExpenses.map((expense, index) => (
@@ -313,9 +382,13 @@ function ViewExpense() {
           </div>
         </div>
       )}
-      <button className="btn btn-sm btn-dark" onClick={() => navigate("/")}>
+      <button
+        className="btn btn-sm btn-dark mb-3"
+        onClick={() => navigate("/")}
+      >
         Back
       </button>
+      <br />
     </div>
   );
 }
