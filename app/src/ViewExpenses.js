@@ -85,6 +85,7 @@ function ViewExpense() {
       totalCharges - (totalExpenses + totalTaxes + parseFloat(referralFee));
 
     console.log("Calculated Profit:", profit);
+  
     try {
       // Save the profit and inputs to the Firebase 'profit' collection
       const profitData = {
@@ -103,6 +104,7 @@ function ViewExpense() {
 
       alert("Profit data saved successfully!");
       setShowModal(false); // Close the modal after saving
+      window.location.reload();
     } catch (error) {
       console.error("Error saving profit data:", error);
       alert("Failed to save profit data. Please try again.");
@@ -133,9 +135,12 @@ function ViewExpense() {
 
   useEffect(() => {
     const fetchProfitData = async () => {
+      if (!waybillNo) return;
+  
       try {
         const profitRef = collection(db, "profit");
-        const querySnapshot = await getDocs(profitRef);
+        const q = query(profitRef, where("waybillNo", "==", waybillNo)); // Query with waybillNo
+        const querySnapshot = await getDocs(q);
         const data = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
@@ -145,9 +150,10 @@ function ViewExpense() {
         console.error("Error fetching profit data:", error);
       }
     };
-
+  
     fetchProfitData();
-  }, []);
+  }, [waybillNo]);
+  
 
   const renderCharges = (charges) => {
     return Object.entries(charges).map(([key, value], idx) => {
@@ -173,12 +179,16 @@ function ViewExpense() {
       <br />
       <div className="d-flex align-items-center justify-content-between">
         <h1>Waybill No: {waybillNo}</h1>
+       
+      
         <button
           className="btn btn-md btn-primary"
           onClick={() => setShowModal(true)}
         >
           Calculate Profit
         </button>
+        
+       
       </div>
 
       <table className="table table-bordered">
@@ -253,37 +263,36 @@ function ViewExpense() {
       <div className="row">
         {/* <h2>Profit Data</h2> */}
         {profitData.length > 0 ? (
-          <ul className="list-group">
-            {profitData.map((profit, index) => (
-              <li className="list-group-item" key={profit.id}>
-                <strong>Total Charges:</strong>{" "}
-                {profit.totalCharges.toLocaleString()} <br />
-                <strong>Total Expenses:</strong>{" "}
-                {profit.totalExpenses.toLocaleString()} <br />
-                <strong>Total Taxes:</strong>{" "}
-                {profit.totalTaxes.toLocaleString()} <br />
-                <strong>Referral Fee:</strong>{" "}
-                {profit.referralFee.toLocaleString()} <br />
-                <strong>Profit:</strong> {profit.profit.toLocaleString()} <br />
-                <strong>Variable Expenses:</strong>
-                <ul className="list-group list-group-flush">
-                  {profit.variableExpenses.map((expense, idx) => (
-                    <li
-                      key={idx}
-                      className="list-group-item d-flex justify-content-between"
-                    >
-                      <span>{expense.name}</span>
-                      <span>{expense.amount.toLocaleString()}</span>
-                    </li>
-                  ))}
-                </ul>
-                {/* <small className="text-muted">
-                  <strong>Timestamp:</strong>{" "}
-                  {new Date(profit.timestamp).toLocaleString()}
-                </small> */}
-              </li>
-            ))}
-          </ul>
+        <ul className="list-group">
+        {profitData.map((profit, index) => {
+          const calculatedReferralFee =
+            (profit.referralFee / 100) * profit.totalCharges; // Calculate referral fee
+      
+          return (
+            <li className="list-group-item" key={profit.id}>
+              <strong>Total Charges:</strong> {profit.totalCharges.toLocaleString()} <br />
+              <strong>Total Expenses:</strong> {profit.totalExpenses.toLocaleString()} <br />
+              <strong>Total Taxes:</strong> {profit.totalTaxes.toLocaleString()} <br />
+              <strong>Referral Fee:</strong> {calculatedReferralFee.toLocaleString()}{" "}
+              <br />
+              <strong>Profit:</strong> {profit.profit.toLocaleString()} <br />
+              <strong>Variable Expenses:</strong>
+              <ul className="list-group list-group-flush">
+                {profit.variableExpenses.map((expense, idx) => (
+                  <li
+                    key={idx}
+                    className="list-group-item d-flex justify-content-between"
+                  >
+                    <span>{expense.name}</span>
+                    <span>{expense.amount.toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          );
+        })}
+      </ul>
+      
         ) : (
           <p>No profit data available.</p>
         )}
