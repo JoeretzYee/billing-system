@@ -24,7 +24,7 @@ function ViewExpensesModal({ isOpen, onClose, waybillNos }) {
   };
 
   if (!isOpen) return null; // Don't render if modal is not open
-
+  console.log("filtered waybill: ", filteredWaybillNos);
   return (
     <div
       className="modal fade show"
