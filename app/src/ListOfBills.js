@@ -187,7 +187,7 @@ function ListOfBills() {
           others: editDetail.others || [], // Default to an empty array if not defined
           rows: editDetail.rows || [], // Default to an empty array if not defined
           shipmentDetails: {
-            ...editDetail.shipmentDetails, // Spread to preserve shipment details
+            ...editDetail.shipmentDetails, // Spread to peserve shipment details
           },
           shipperName: editDetail.shipperName || "", // Ensure the shipper name is saved
           waybillNo: editDetail.waybillNo || "", // Ensure the waybillNo is saved
@@ -308,7 +308,13 @@ function ListOfBills() {
                       id="editWaybillNo"
                       className="form-control"
                       value={editDetail.waybillNo}
-                      readOnly // You can make this editable if needed
+                      onChange={(e) => {
+                        setEditDetail({
+                          ...editDetail,
+                          waybillNo: e.target.value,
+                        });
+                      }}
+                      // You can make this editable if needed
                     />
                   </div>
 
