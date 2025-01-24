@@ -106,7 +106,7 @@ function App() {
     <div className="app">
       <header className="bg-dark text-white py-3">
         <div className="container">
-          <h1 className="text-center mb-0">ES Tablante Cargo Services</h1>
+          <h1 className="text-center mb-0">ES Tablante Billing System</h1>
         </div>
       </header>
       <main>

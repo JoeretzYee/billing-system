@@ -9,6 +9,7 @@ import {
   doc,
   updateDoc,
   getDocs,
+  deleteDoc,
   orderBy,
   query,
   where,
@@ -217,6 +218,27 @@ function ListOfBills() {
         .join(", ") || "No mode selected"
     );
   };
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this record?")) {
+      try {
+        // Reference the document by ID
+        const docRef = doc(db, "details_form", id);
+
+        // Delete the document
+        await deleteDoc(docRef);
+
+        // Remove the deleted record from the local state
+        setDetails((prevDetails) =>
+          prevDetails.filter((detail) => detail.id !== id)
+        );
+
+        alert("Record deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting document: ", error);
+        alert("Error deleting the record. Please try again.");
+      }
+    }
+  };
 
   return (
     <div>
@@ -281,6 +303,98 @@ function ListOfBills() {
         </div>
       </div>
 
+      {/* Data Table */}
+      <div className="container">
+        <table className="table table-bordered">
+          <thead>
+            <tr>
+              <th>Waybill No</th>
+              <th>Shipper Name</th>
+              <th>Charges</th>
+              <th>Mode of Transport</th>
+              <th>Mode of Service</th>
+              <th>Others</th>
+              <th>Name of Consignee, Origin, Destination</th>
+              <th>Quantity, Description, Volume</th>
+              <th>Volume</th>
+              <th>Total</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {details.map((detail, index) => {
+              const totalCharges = calculateTotalCharges(
+                detail.charges,
+                detail.others,
+                detail.rows
+              );
+              return (
+                <tr key={index}>
+                  <td>{detail.waybillNo}</td>
+                  <td>{detail.shipperName}</td>
+                  <td>
+                    {detail.charges &&
+                      Object.entries(detail.charges).map(
+                        ([key, value], idx) => (
+                          <div key={idx}>
+                            {key}: {value}
+                          </div>
+                        )
+                      )}
+                  </td>
+                  <td>{getTrueModes(detail.modeOfTransport)}</td>
+                  <td>{getTrueModes(detail.modeOfService)}</td>
+                  <td>
+                    {detail.others &&
+                      detail.others.map((other, idx) => (
+                        <div key={idx}>
+                          {other.amount} - {other.description}
+                        </div>
+                      ))}
+                  </td>
+                  <td>
+                    {detail.shipmentDetails
+                      ? `Consignee: ${detail.shipmentDetails.consigneeName}, ${detail.shipmentDetails.origin} to ${detail.shipmentDetails.destination}`
+                      : ""}
+                  </td>
+                  <td>
+                    {detail.rows &&
+                      detail.rows.map((row, idx) => (
+                        <div key={idx}>
+                          {row.description}: {row.quantity}
+                        </div>
+                      ))}
+                  </td>
+                  <td>
+                    {detail.rows &&
+                      detail.rows.map((row, idx) => (
+                        <div key={idx}>{row.volume}</div>
+                      ))}
+                  </td>
+                  <td>{totalCharges.toLocaleString()}</td>
+                  <td>
+                    <div className="d-flex gap-2">
+                      <button
+                        className="btn btn-sm btn-primary"
+                        onClick={() => handleEdit(detail)} // Handle edit
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="btn btn-sm btn-danger"
+                        // Handle edit
+                        onClick={() => handleDelete(detail.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
       {/* Edit Billing Modal */}
       <div
         className={`modal fade ${isEditModalOpen ? "show" : ""}`}
@@ -521,90 +635,6 @@ function ListOfBills() {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Data Table */}
-      <div className="container">
-        <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>Waybill No</th>
-              <th>Shipper Name</th>
-              <th>Charges</th>
-              <th>Mode of Transport</th>
-              <th>Mode of Service</th>
-              <th>Others</th>
-              <th>Name of Consignee, Origin, Destination</th>
-              <th>Quantity, Description, Volume</th>
-              <th>Volume</th>
-              <th>Total</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {details.map((detail, index) => {
-              const totalCharges = calculateTotalCharges(
-                detail.charges,
-                detail.others,
-                detail.rows
-              );
-              return (
-                <tr key={index}>
-                  <td>{detail.waybillNo}</td>
-                  <td>{detail.shipperName}</td>
-                  <td>
-                    {detail.charges &&
-                      Object.entries(detail.charges).map(
-                        ([key, value], idx) => (
-                          <div key={idx}>
-                            {key}: {value}
-                          </div>
-                        )
-                      )}
-                  </td>
-                  <td>{getTrueModes(detail.modeOfTransport)}</td>
-                  <td>{getTrueModes(detail.modeOfService)}</td>
-                  <td>
-                    {detail.others &&
-                      detail.others.map((other, idx) => (
-                        <div key={idx}>
-                          {other.amount} - {other.description}
-                        </div>
-                      ))}
-                  </td>
-                  <td>
-                    {detail.shipmentDetails
-                      ? `Consignee: ${detail.shipmentDetails.consigneeName}, ${detail.shipmentDetails.origin} to ${detail.shipmentDetails.destination}`
-                      : ""}
-                  </td>
-                  <td>
-                    {detail.rows &&
-                      detail.rows.map((row, idx) => (
-                        <div key={idx}>
-                          {row.description}: {row.quantity}
-                        </div>
-                      ))}
-                  </td>
-                  <td>
-                    {detail.rows &&
-                      detail.rows.map((row, idx) => (
-                        <div key={idx}>{row.volume}</div>
-                      ))}
-                  </td>
-                  <td>{totalCharges.toLocaleString()}</td>
-                  <td>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => handleEdit(detail)} // Handle edit
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
       </div>
     </div>
   );
