@@ -166,7 +166,7 @@ function BillForm() {
             Waybill No
           </label>
           <input
-            type="number"
+            type="text"
             className="form-control"
             id="waybillNo"
             value={waybillNo} // Bind value to state

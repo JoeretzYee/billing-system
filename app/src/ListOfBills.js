@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Select from "react-select";
 import "./App.css";
 import BillForm from "./BillForm";
 import {
@@ -12,7 +11,6 @@ import {
   deleteDoc,
   orderBy,
   query,
-  where,
 } from "./firebase";
 import ViewExpensesModal from "./ViewExpensesModal";
 
@@ -21,15 +19,14 @@ function ListOfBills() {
   // State for managing modal visibility
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isExpensesModalOpen, setIsExpensesModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // New state for edit modal
-  const [editDetail, setEditDetail] = useState(null); // State to hold selected bill data for editing
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editDetail, setEditDetail] = useState(null);
 
   // State to hold fetched details and Waybill No options
-  const [details, setDetails] = useState([]);
+  const [allDetails, setAllDetails] = useState([]); // Store ALL documents
+  const [filteredDetails, setFilteredDetails] = useState([]); // Store filtered results
   const [waybillNos, setWaybillNos] = useState([]);
-  const [selectedWaybillNo, setSelectedWaybillNo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [waybillSearch, setWaybillSearch] = useState("");
 
   // Toggle visibility for Add Form modal
   const toggleModal = () => setIsModalOpen(!isModalOpen);
@@ -41,73 +38,48 @@ function ListOfBills() {
   // Toggle visibility for Edit Billing modal
   const toggleEditModal = () => setIsEditModalOpen(!isEditModalOpen);
 
-  console.log("details: ", details);
-  // Fetch Waybill Nos
+  // Fetch ALL details
+  const fetchAllData = async () => {
+    try {
+      const detailsRef = collection(db, "details_form");
+      const q = query(detailsRef, orderBy("waybillNo"));
+      const querySnapshot = await getDocs(q);
+
+      const data = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setAllDetails(data);
+      setFilteredDetails(data); // Initially show all
+
+      // Extract unique waybillNos
+      const waybills = Array.from(new Set(data.map((item) => item.waybillNo)));
+      setWaybillNos(waybills);
+    } catch (e) {
+      console.error("Error fetching documents: ", e);
+    }
+  };
+
   useEffect(() => {
-    const fetchWaybillNos = async () => {
-      try {
-        const waybillRef = collection(db, "details_form");
-        const querySnapshot = await getDocs(
-          query(waybillRef, orderBy("waybillNo"))
-        );
-        const waybills = querySnapshot.docs.map((doc) => doc.data().waybillNo);
-        setWaybillNos(waybills);
-      } catch (e) {
-        console.error("Error fetching Waybill Nos: ", e);
-      }
-    };
-    fetchWaybillNos();
+    fetchAllData();
   }, []);
 
-  // Fetch details based on Waybill No
+  // Filter details based on search query
   useEffect(() => {
-    const fetchDetailsByWaybillNo = async () => {
-      if (!selectedWaybillNo) {
-        setDetails([]);
-        return;
-      }
-      try {
-        const detailsRef = collection(db, "details_form");
-        const q = query(
-          detailsRef,
-          where("waybillNo", "==", selectedWaybillNo)
-        );
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setDetails(data);
-      } catch (e) {
-        console.error("Error fetching documents: ", e);
-      }
-    };
-    fetchDetailsByWaybillNo();
-  }, [selectedWaybillNo]);
+    if (!searchQuery) {
+      setFilteredDetails(allDetails);
+      return;
+    }
 
-  // Fetch details based on search query or selected Waybill No
-  useEffect(() => {
-    const fetchDetails = async () => {
-      const detailsRef = collection(db, "details_form");
-      const q = searchQuery
-        ? query(detailsRef, where("waybillNo", "==", searchQuery))
-        : detailsRef;
+    const queryLower = searchQuery.toLowerCase();
+    const filtered = allDetails.filter(
+      (detail) =>
+        detail.waybillNo && detail.waybillNo.toLowerCase().includes(queryLower)
+    );
 
-      try {
-        const querySnapshot = await getDocs(q);
-        const data = querySnapshot.docs.map((doc) => ({
-          ...doc.data(), // Spread the document data
-          id: doc.id, // Add the document id
-        }));
-        console.log("Data from useEffect : ", data);
-        setDetails(data);
-      } catch (e) {
-        console.error("Error fetching documents: ", e);
-      }
-    };
-
-    fetchDetails();
-  }, [searchQuery]); // Fetch data when search query changes
+    setFilteredDetails(filtered);
+  }, [searchQuery, allDetails]);
 
   // Helper function to extract true modes from an object
   const getTrueModes = (modeObject) => {
@@ -126,8 +98,8 @@ function ListOfBills() {
 
     if (charges) {
       total += parseFloat(charges.documentation || 0);
-      if (charges.freight && rows && rows[0].volume) {
-        total += parseFloat(charges.freight) * parseFloat(rows[0].volume); // Multiply freight by volume
+      if (charges.freight && rows && rows[0]?.volume) {
+        total += parseFloat(charges.freight) * parseFloat(rows[0].volume);
       } else {
         total += parseFloat(charges.freight || 0);
       }
@@ -147,24 +119,13 @@ function ListOfBills() {
   };
 
   const navigateToViewExpenses = () => {
-    if (selectedWaybillNo) {
-      navigate("/view-expense", {
-        state: { waybillNo: selectedWaybillNo }, // Pass the selected waybillNo via state
-      });
-    } else {
-      alert("Please select a Waybill No.");
-    }
+    navigate("/view-expense");
   };
-
-  // Filter waybillNos based on search input
-  const filteredWaybillNos = waybillNos.filter(
-    (waybill) => waybill.toString().includes(waybillSearch) // Filter waybillNos
-  );
 
   // Function to handle edit button click
   const handleEdit = (detail) => {
-    setEditDetail(detail); // Set the selected bill data for editing
-    setIsEditModalOpen(true); // Open the edit modal
+    setEditDetail(detail);
+    setIsEditModalOpen(true);
   };
 
   const handleSaveChanges = async () => {
@@ -172,7 +133,7 @@ function ListOfBills() {
       try {
         // Update the document's structure
         const updatedDetail = {
-          ...editDetail, // Spread the existing detail
+          ...editDetail,
           charges: {
             documentation: editDetail.charges?.documentation || 0,
             freight: editDetail.charges?.freight || 0,
@@ -180,28 +141,31 @@ function ListOfBills() {
             valuation: editDetail.charges?.valuation || 0,
           },
           modeOfService: {
-            ...editDetail.modeOfService, // Spread to preserve other modes
+            ...editDetail.modeOfService,
           },
           modeOfTransport: {
-            ...editDetail.modeOfTransport, // Spread to preserve transport modes
+            ...editDetail.modeOfTransport,
           },
-          others: editDetail.others || [], // Default to an empty array if not defined
-          rows: editDetail.rows || [], // Default to an empty array if not defined
+          others: editDetail.others || [],
+          rows: editDetail.rows || [],
           shipmentDetails: {
-            ...editDetail.shipmentDetails, // Spread to peserve shipment details
+            ...editDetail.shipmentDetails,
           },
-          shipperName: editDetail.shipperName || "", // Ensure the shipper name is saved
-          waybillNo: editDetail.waybillNo || "", // Ensure the waybillNo is saved
+          shipperName: editDetail.shipperName || "",
+          waybillNo: editDetail.waybillNo || "",
         };
 
-        // Reference the document to update using its ID
         const docRef = doc(db, "details_form", editDetail.id);
-        await updateDoc(docRef, updatedDetail); // Update the document in Firestore
+        await updateDoc(docRef, updatedDetail);
 
-        alert("Changes saved successfully!"); // Confirmation alert
+        // Update local state
+        const updatedDetails = allDetails.map((item) =>
+          item.id === editDetail.id ? { ...item, ...updatedDetail } : item
+        );
 
-        setIsEditModalOpen(false); // Optionally close the modal
-        window.location.reload();
+        setAllDetails(updatedDetails);
+        setIsEditModalOpen(false);
+        alert("Changes saved successfully!");
       } catch (error) {
         console.error("Error updating document: ", error);
         alert("Error saving changes. Please try again.");
@@ -210,27 +174,22 @@ function ListOfBills() {
   };
 
   const getSelectedModes = (modeObject) => {
-    // Generate a list of selected modes (values that are true)
     return (
       Object.entries(modeObject)
-        .filter(([key, value]) => value === true) // Only include true values
-        .map(([key]) => key.replace(/([A-Z])/g, " $1").trim()) // Format the keys for display
+        .filter(([key, value]) => value === true)
+        .map(([key]) => key.replace(/([A-Z])/g, " $1").trim())
         .join(", ") || "No mode selected"
     );
   };
+
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this record?")) {
       try {
-        // Reference the document by ID
-        const docRef = doc(db, "details_form", id);
+        await deleteDoc(doc(db, "details_form", id));
 
-        // Delete the document
-        await deleteDoc(docRef);
-
-        // Remove the deleted record from the local state
-        setDetails((prevDetails) =>
-          prevDetails.filter((detail) => detail.id !== id)
-        );
+        // Update state without reloading
+        const updatedDetails = allDetails.filter((detail) => detail.id !== id);
+        setAllDetails(updatedDetails);
 
         alert("Record deleted successfully!");
       } catch (error) {
@@ -238,6 +197,12 @@ function ListOfBills() {
         alert("Error deleting the record. Please try again.");
       }
     }
+  };
+
+  // Pass this to BillForm to refresh data after new entry
+  const handleNewBillAdded = () => {
+    fetchAllData();
+    toggleModal();
   };
 
   return (
@@ -259,11 +224,11 @@ function ListOfBills() {
       {/* Search field to filter by Waybill No */}
       <div className="container mb-4">
         <input
-          type="number"
+          type="text"
           className="form-control"
-          placeholder="Search by Waybill No"
+          placeholder="Search by Waybill No (partial match)"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)} // Set search query
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
 
@@ -275,36 +240,30 @@ function ListOfBills() {
       />
 
       {/* Add Form Modal */}
-      <div
-        className={`modal fade ${isModalOpen ? "show" : ""}`}
-        tabIndex="-1"
-        aria-labelledby="exampleModalLabel"
-        aria-hidden={!isModalOpen}
-        style={{ display: isModalOpen ? "block" : "none" }}
-      >
-        <div className="modal-dialog modal-xl">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h5 className="modal-title" id="exampleModalLabel">
-                Bill Form
-              </h5>
-              <button
-                type="button"
-                className="btn-close"
-                data-bs-dismiss="modal"
-                aria-label="Close"
-                onClick={toggleModal}
-              ></button>
-            </div>
-            <div className="modal-body">
-              <BillForm />
+      {isModalOpen && (
+        <div className="modal fade show" style={{ display: "block" }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title" id="exampleModalLabel">
+                  Bill Form
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={toggleModal}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <BillForm onSuccess={handleNewBillAdded} />
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Data Table */}
-      <div className="container">
+      <div className="container-fluid">
         <table className="table table-bordered">
           <thead>
             <tr>
@@ -322,7 +281,7 @@ function ListOfBills() {
             </tr>
           </thead>
           <tbody>
-            {details.map((detail, index) => {
+            {filteredDetails.map((detail, index) => {
               const totalCharges = calculateTotalCharges(
                 detail.charges,
                 detail.others,
@@ -376,13 +335,12 @@ function ListOfBills() {
                     <div className="d-flex gap-2">
                       <button
                         className="btn btn-sm btn-primary"
-                        onClick={() => handleEdit(detail)} // Handle edit
+                        onClick={() => handleEdit(detail)}
                       >
                         Edit
                       </button>
                       <button
                         className="btn btn-sm btn-danger"
-                        // Handle edit
                         onClick={() => handleDelete(detail.id)}
                       >
                         Delete
@@ -428,7 +386,23 @@ function ListOfBills() {
                           waybillNo: e.target.value,
                         });
                       }}
-                      // You can make this editable if needed
+                    />
+                  </div>
+
+                  {/* Shipper Name */}
+                  <div className="form-group">
+                    <label htmlFor="editShipperName">Shipper Name</label>
+                    <input
+                      type="text"
+                      id="editShipperName"
+                      className="form-control"
+                      value={editDetail.shipperName || ""}
+                      onChange={(e) => {
+                        setEditDetail({
+                          ...editDetail,
+                          shipperName: e.target.value,
+                        });
+                      }}
                     />
                   </div>
 
@@ -516,17 +490,17 @@ function ListOfBills() {
                     />
                   </div>
 
-                  {/* Other Charges (If any) */}
+                  {/* Other Charges */}
                   <div className="form-group">
                     <label htmlFor="editOtherCharges">Other Charges</label>
                     {editDetail.others?.map((other, index) => (
                       <div
                         key={index}
-                        className="d-flex justify-content-between"
+                        className="d-flex justify-content-between gap-2 mb-2"
                       >
                         <input
                           type="number"
-                          className="form-control mb-2"
+                          className="form-control"
                           value={other.amount || 0}
                           onChange={(e) => {
                             const updatedOthers = [...editDetail.others];
@@ -536,10 +510,11 @@ function ListOfBills() {
                               others: updatedOthers,
                             });
                           }}
+                          placeholder="Amount"
                         />
                         <input
                           type="text"
-                          className="form-control mb-2"
+                          className="form-control"
                           value={other.description || ""}
                           onChange={(e) => {
                             const updatedOthers = [...editDetail.others];
@@ -549,60 +524,129 @@ function ListOfBills() {
                               others: updatedOthers,
                             });
                           }}
+                          placeholder="Description"
                         />
                       </div>
                     ))}
                   </div>
 
+                  {/* Shipment Details */}
+                  <div className="form-group">
+                    <label>Shipment Details</label>
+                    <div className="d-flex gap-2 mb-2">
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={editDetail.shipmentDetails?.consigneeName || ""}
+                        onChange={(e) => {
+                          setEditDetail({
+                            ...editDetail,
+                            shipmentDetails: {
+                              ...editDetail.shipmentDetails,
+                              consigneeName: e.target.value,
+                            },
+                          });
+                        }}
+                        placeholder="Consignee Name"
+                      />
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={editDetail.shipmentDetails?.origin || ""}
+                        onChange={(e) => {
+                          setEditDetail({
+                            ...editDetail,
+                            shipmentDetails: {
+                              ...editDetail.shipmentDetails,
+                              origin: e.target.value,
+                            },
+                          });
+                        }}
+                        placeholder="Origin"
+                      />
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={editDetail.shipmentDetails?.destination || ""}
+                        onChange={(e) => {
+                          setEditDetail({
+                            ...editDetail,
+                            shipmentDetails: {
+                              ...editDetail.shipmentDetails,
+                              destination: e.target.value,
+                            },
+                          });
+                        }}
+                        placeholder="Destination"
+                      />
+                    </div>
+                  </div>
+
                   {/* Quantity, Description, Volume */}
                   <div className="form-group">
-                    <label htmlFor="editRows">
-                      Quantity, Description, Volume
-                    </label>
+                    <label>Quantity, Description, Volume</label>
                     {editDetail.rows?.map((row, index) => (
-                      <div key={index}>
-                        <input
-                          type="number"
-                          className="form-control mb-2"
-                          value={row.quantity || 0}
-                          onChange={(e) => {
-                            const updatedRows = [...editDetail.rows];
-                            updatedRows[index].quantity = e.target.value;
-                            setEditDetail({
-                              ...editDetail,
-                              rows: updatedRows,
-                            });
-                          }}
-                          placeholder="Quantity"
-                        />
-                        <input
-                          type="text"
-                          className="form-control mb-2"
-                          value={row.description || ""}
-                          onChange={(e) => {
-                            const updatedRows = [...editDetail.rows];
-                            updatedRows[index].description = e.target.value;
-                            setEditDetail({
-                              ...editDetail,
-                              rows: updatedRows,
-                            });
-                          }}
-                          placeholder="Description"
-                        />
-                        <input
-                          type="number"
-                          className="form-control mb-2"
-                          value={row.volume || 0}
-                          onChange={(e) => {
-                            const updatedRows = [...editDetail.rows];
-                            updatedRows[index].volume = e.target.value;
-                            setEditDetail({
-                              ...editDetail,
-                              rows: updatedRows,
-                            });
-                          }}
-                          placeholder="Volume"
-                        />
+                      <div key={index} className="mb-3">
+                        <div className="d-flex gap-2 mb-2">
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={row.quantity || 0}
+                            onChange={(e) => {
+                              const updatedRows = [...editDetail.rows];
+                              updatedRows[index].quantity = e.target.value;
+                              setEditDetail({
+                                ...editDetail,
+                                rows: updatedRows,
+                              });
+                            }}
+                            placeholder="Quantity"
+                          />
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={row.description || ""}
+                            onChange={(e) => {
+                              const updatedRows = [...editDetail.rows];
+                              updatedRows[index].description = e.target.value;
+                              setEditDetail({
+                                ...editDetail,
+                                rows: updatedRows,
+                              });
+                            }}
+                            placeholder="Description"
+                          />
+                        </div>
+                        <div className="d-flex gap-2">
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={row.volume || 0}
+                            onChange={(e) => {
+                              const updatedRows = [...editDetail.rows];
+                              updatedRows[index].volume = e.target.value;
+                              setEditDetail({
+                                ...editDetail,
+                                rows: updatedRows,
+                              });
+                            }}
+                            placeholder="Volume"
+                          />
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={row.weight || 0}
+                            onChange={(e) => {
+                              const updatedRows = [...editDetail.rows];
+                              updatedRows[index].weight = e.target.value;
+                              setEditDetail({
+                                ...editDetail,
+                                rows: updatedRows,
+                              });
+                            }}
+                            placeholder="Weight"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>

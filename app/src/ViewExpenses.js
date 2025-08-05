@@ -11,6 +11,21 @@ import {
   where,
   deleteDoc,
 } from "./firebase";
+import {
+  Document,
+  Paragraph,
+  Table,
+  TableRow,
+  TableCell,
+  TextRun,
+  AlignmentType,
+  BorderStyle,
+  WidthType,
+  Packer,
+  ImageRun,
+  VerticalAlign,
+} from "docx";
+import { saveAs } from "file-saver";
 
 function ViewExpense() {
   const location = useLocation();
@@ -107,7 +122,7 @@ function ViewExpense() {
       setEditModal(false);
       window.location.reload();
     } catch (error) {
-      console.error("Error updating profit data:", error);
+      console.error("Error updating profit         data:", error);
       alert("Failed to update profit data. Please try again.");
     }
   };
@@ -243,6 +258,307 @@ function ViewExpense() {
     });
   };
 
+  // Generate Word Document
+  const generateWordDocument = async () => {
+    // Get customer name from first detail
+    const customerName = details.length > 0 ? details[0].shipperName || "" : "";
+
+    // Calculate max content lengths for columns
+    const columnMaxLengths = Array(4).fill(0);
+    const headers = ["Waybill No.", "Others", "Description", "Total"];
+
+    details.forEach((detail) => {
+      const values = [
+        detail.waybillNo || "",
+        formatOthersCompact(detail.others),
+        formatDescription(detail),
+        calculateTotalCharges(
+          detail.charges,
+          detail.others,
+          detail.rows
+        ).toFixed(2),
+      ];
+
+      values.forEach((val, i) => {
+        const maxLineLength = Math.max(
+          ...val.split("\n").map((line) => line.length)
+        );
+        columnMaxLengths[i] = Math.max(columnMaxLengths[i], maxLineLength);
+      });
+    });
+
+    // Include header lengths
+    headers.forEach((header, i) => {
+      columnMaxLengths[i] = Math.max(columnMaxLengths[i], header.length);
+    });
+
+    // Convert character lengths to twips
+    const columnWidths = columnMaxLengths.map((len) =>
+      Math.max(500, len * 100)
+    );
+
+    // Fetch company logo
+    let logoBuffer = null;
+    try {
+      const response = await fetch(`${process.env.PUBLIC_URL}/kuys_logo.png`);
+      const arrayBuffer = await response.arrayBuffer();
+      logoBuffer = arrayBuffer;
+    } catch (error) {
+      console.error("Error loading logo:", error);
+    }
+
+    const doc = new Document({
+      sections: [
+        {
+          properties: {
+            page: {
+              margins: { top: 0, bottom: 0, left: 0, right: 0 },
+            },
+          },
+          children: [
+            // Full-width logo header
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              columnWidths: [10000], // Single column for full width
+              borders: {
+                top: { style: BorderStyle.NONE },
+                bottom: { style: BorderStyle.NONE },
+                left: { style: BorderStyle.NONE },
+                right: { style: BorderStyle.NONE },
+                insideHorizontal: { style: BorderStyle.NONE },
+                insideVertical: { style: BorderStyle.NONE },
+              },
+              rows: [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      children: logoBuffer
+                        ? [
+                            new Paragraph({
+                              alignment: AlignmentType.CENTER,
+                              children: [
+                                new ImageRun({
+                                  data: logoBuffer,
+                                  transformation: {
+                                    width: 300, // Wider logo
+                                    height: 100, // Maintain aspect ratio
+                                  },
+                                }),
+                              ],
+                            }),
+                          ]
+                        : [],
+                    }),
+                  ],
+                }),
+              ],
+            }),
+
+            // Contact information below logo
+            // new Table({
+            //   width: { size: 100, type: WidthType.PERCENTAGE },
+            //   columnWidths: [10000],
+            //   borders: {
+            //     top: { style: BorderStyle.NONE },
+            //     bottom: { style: BorderStyle.NONE },
+            //     left: { style: BorderStyle.NONE },
+            //     right: { style: BorderStyle.NONE },
+            //     insideHorizontal: { style: BorderStyle.NONE },
+            //     insideVertical: { style: BorderStyle.NONE },
+            //   },
+            //   rows: [
+            //     new TableRow({
+            //       children: [
+            //         new TableCell({
+            //           borders: {
+            //             top: { style: BorderStyle.NONE },
+            //             bottom: { style: BorderStyle.NONE },
+            //             left: { style: BorderStyle.NONE },
+            //             right: { style: BorderStyle.NONE },
+            //             insideHorizontal: { style: BorderStyle.NONE },
+            //             insideVertical: { style: BorderStyle.NONE },
+            //           },
+            //           children: [
+            //             new Paragraph({
+            //               alignment: AlignmentType.CENTER,
+            //               children: [
+            //                 new TextRun({
+            //                   text: "DEL PILAR VILLAGE, MA-A , DAVAO CITY      Mobile No: 09173126897",
+            //                   bold: true,
+            //                   size: 16,
+            //                 }),
+            //               ],
+            //             }),
+            //             new Paragraph({
+            //               alignment: AlignmentType.CENTER,
+            //               children: [
+            //                 new TextRun({
+            //                   text: "Email Add: establantecargo@gmail.com       LandLine No: (082)244-1104",
+            //                   bold: true,
+            //                   size: 16,
+            //                 }),
+            //               ],
+            //             }),
+            //           ],
+            //         }),
+            //       ],
+            //     }),
+            //   ],
+            // }),
+            // Combined logo and contact information in one table
+
+            // Space between header and customer info
+            new Paragraph({ text: "", spacing: { after: 200 } }),
+
+            // Customer Information
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `Customer Name: ${customerName}`,
+                  bold: true,
+                }),
+              ],
+            }),
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "Address: ",
+                  bold: true,
+                }),
+              ],
+            }),
+            new Paragraph({ text: "" }), // Empty line
+
+            // Main Table (4 columns)
+            new Table({
+              width: { size: 100, type: WidthType.PERCENTAGE },
+              columnWidths: columnWidths,
+              all: { style: BorderStyle.NONE },
+              // borders: {
+              //   top: { style: BorderStyle.SINGLE },
+              //   bottom: { style: BorderStyle.SINGLE },
+              //   left: { style: BorderStyle.SINGLE },
+              //   right: { style: BorderStyle.SINGLE },
+              //   insideHorizontal: { style: BorderStyle.SINGLE },
+              //   insideVertical: { style: BorderStyle.SINGLE },
+              // },
+              rows: [
+                // Table Header
+                new TableRow({
+                  children: headers.map(
+                    (header) =>
+                      new TableCell({
+                        children: [
+                          new Paragraph({
+                            alignment: AlignmentType.CENTER,
+                            children: [
+                              new TextRun({ text: header, bold: true }),
+                            ],
+                            spacing: { line: 240 },
+                          }),
+                        ],
+                      })
+                  ),
+                }),
+                // Data Rows
+                ...details.map((detail) => {
+                  const total = calculateTotalCharges(
+                    detail.charges,
+                    detail.others,
+                    detail.rows
+                  ).toFixed(2);
+
+                  return new TableRow({
+                    children: [
+                      createDataCell(detail.waybillNo || ""),
+                      createDataCell(formatOthersCompact(detail.others)),
+                      createDataCell(formatDescription(detail)),
+                      createDataCell(total),
+                    ],
+                  });
+                }),
+              ],
+            }),
+
+            new Paragraph({ text: "" }), // Empty line
+
+            // Footer Section
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: "Received By: ___________________________",
+                  bold: true,
+                }),
+              ],
+            }),
+          ],
+        },
+      ],
+    });
+
+    // Save the document
+    Packer.toBlob(doc).then((blob) => {
+      saveAs(blob, `waybill_${waybillNo}.docx`);
+    });
+  };
+
+  // Helper function to create data cells
+  const createDataCell = (text) => {
+    return new TableCell({
+      children: [
+        new Paragraph({
+          text,
+          spacing: { line: 240 },
+        }),
+      ],
+    });
+  };
+
+  // Format description field with consignee and item details
+  const formatDescription = (detail) => {
+    const parts = [];
+
+    if (detail.shipmentDetails?.consigneeName) {
+      parts.push(`Consignee: ${detail.shipmentDetails.consigneeName}`);
+    }
+
+    if (detail.rows) {
+      detail.rows.forEach((row) => {
+        let rowDesc = `${row.description || ""}: ${row.quantity || ""}`;
+        if (row.volume) rowDesc += ` (${row.volume})`;
+        parts.push(rowDesc);
+      });
+    }
+
+    return parts.join("\n");
+  };
+
+  // Compact formatting functions
+  const formatChargesCompact = (charges) => {
+    if (!charges) return "";
+    return Object.entries(charges)
+      .filter(([key, value]) => value !== undefined && value !== "")
+      .map(([key, value]) => `${key}:${value}`)
+      .join("\n");
+  };
+
+  const formatOthersCompact = (others) => {
+    if (!others) return "";
+    return others
+      .map((other) => `${other.amount}-${other.description}`)
+      .join("\n");
+  };
+
+  const formatRowsCompact = (rows) => {
+    if (!rows) return "";
+    return rows.map((row) => `${row.description}:${row.quantity}`).join("\n");
+  };
+
+  const formatVolumeCompact = (rows) => {
+    if (!rows) return "";
+    return rows.map((row) => row.volume).join("\n");
+  };
+
   return (
     <div className="container">
       <br />
@@ -254,6 +570,12 @@ function ViewExpense() {
             onClick={() => navigate("/")}
           >
             Back
+          </button>
+          <button
+            onClick={generateWordDocument}
+            className="btn btn-sm btn-success"
+          >
+            Generate
           </button>
           <button
             className="btn btn-sm btn-secondary"
@@ -283,7 +605,7 @@ function ViewExpense() {
             <th>Mode of Transport</th>
             <th>Mode of Service</th>
             <th>Others</th>
-            <th>Name of Consignee, Origin, Destination</th>
+            <th>Name of Consignee</th>
             <th>Quantity, Description, Volume</th>
             <th>Volume</th>
             <th>Total</th>
@@ -320,7 +642,7 @@ function ViewExpense() {
                 </td>
                 <td>
                   {detail.shipmentDetails
-                    ? `Consignee: ${detail.shipmentDetails.consigneeName}, ${detail.shipmentDetails.origin} to ${detail.shipmentDetails.destination}`
+                    ? `${detail.shipmentDetails.consigneeName}, ${detail.shipmentDetails.origin} to ${detail.shipmentDetails.destination}`
                     : ""}
                 </td>
                 <td>
@@ -354,7 +676,7 @@ function ViewExpense() {
               return (
                 <li className="list-group-item" key={profit.id}>
                   <strong>Total Charges:</strong>{" "}
-                  {profit.totalCharges.toLocaleString()} - {profit.id} <br />
+                  {profit.totalCharges.toLocaleString()} <br />
                   <strong>Total Expenses:</strong>{" "}
                   {profit.totalExpenses.toLocaleString()} <br />
                   <strong>Total Taxes:</strong>{" "}
