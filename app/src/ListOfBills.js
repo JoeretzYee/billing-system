@@ -97,20 +97,40 @@ function ListOfBills() {
     let total = 0;
 
     if (charges) {
-      total += parseFloat(charges.documentation || 0);
-      if (charges.freight && rows && rows[0]?.volume) {
-        total += parseFloat(charges.freight) * parseFloat(rows[0].volume);
-      } else {
-        total += parseFloat(charges.freight || 0);
+      const documentation =
+        parseFloat(
+          (charges.documentation || "0").toString().replace(/,/g, "")
+        ) || 0;
+      const handling =
+        parseFloat((charges.handling || "0").toString().replace(/,/g, "")) || 0;
+      const valuation =
+        parseFloat((charges.valuation || "0").toString().replace(/,/g, "")) ||
+        0;
+      const freightValue =
+        parseFloat((charges.freight || "0").toString().replace(/,/g, "")) || 0;
+
+      // Sum all volumes
+      let totalVolume = 0;
+      if (Array.isArray(rows)) {
+        rows.forEach((row) => {
+          const vol =
+            parseFloat((row.volume || "0").toString().replace(/,/g, "")) || 0;
+          totalVolume += vol;
+        });
       }
 
-      total += parseFloat(charges.handling || 0);
-      total += parseFloat(charges.valuation || 0);
+      // Charges
+      total += documentation;
+      total += freightValue * totalVolume; // per-volume calculation
+      total += handling;
+      total += valuation;
     }
 
-    if (others) {
+    if (Array.isArray(others)) {
       total += others.reduce(
-        (sum, other) => sum + parseFloat(other.amount || 0),
+        (sum, other) =>
+          sum +
+          (parseFloat((other.amount || "0").toString().replace(/,/g, "")) || 0),
         0
       );
     }

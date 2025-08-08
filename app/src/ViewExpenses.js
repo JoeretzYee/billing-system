@@ -61,31 +61,40 @@ function ViewExpense() {
     let total = 0;
 
     if (charges) {
-      total += parseFloat(charges.documentation || 0);
+      const documentation =
+        parseFloat(
+          (charges.documentation || "0").toString().replace(/,/g, "")
+        ) || 0;
+      const handling =
+        parseFloat((charges.handling || "0").toString().replace(/,/g, "")) || 0;
+      const valuation =
+        parseFloat((charges.valuation || "0").toString().replace(/,/g, "")) ||
+        0;
+      const freightValue =
+        parseFloat((charges.freight || "0").toString().replace(/,/g, "")) || 0;
 
-      // FIXED: Sum all volumes instead of using just the first row
+      // Sum all volumes
       let totalVolume = 0;
-      if (rows && rows.length > 0) {
+      if (Array.isArray(rows)) {
         rows.forEach((row) => {
-          if (row.volume) {
-            totalVolume += parseFloat(row.volume);
-          }
+          const vol =
+            parseFloat((row.volume || "0").toString().replace(/,/g, "")) || 0;
+          totalVolume += vol;
         });
       }
 
-      if (charges.freight && totalVolume > 0) {
-        total += parseFloat(charges.freight) * totalVolume;
-      } else {
-        total += parseFloat(charges.freight || 0);
-      }
-
-      total += parseFloat(charges.handling || 0);
-      total += parseFloat(charges.valuation || 0);
+      // Charges
+      total += documentation;
+      total += freightValue * totalVolume; // per-volume calculation
+      total += handling;
+      total += valuation;
     }
 
-    if (others) {
+    if (Array.isArray(others)) {
       total += others.reduce(
-        (sum, other) => sum + parseFloat(other.amount || 0),
+        (sum, other) =>
+          sum +
+          (parseFloat((other.amount || "0").toString().replace(/,/g, "")) || 0),
         0
       );
     }
@@ -230,6 +239,8 @@ function ViewExpense() {
 
     fetchDetails();
   }, [waybillNo]);
+
+  console.table(details);
 
   useEffect(() => {
     const fetchProfitData = async () => {
