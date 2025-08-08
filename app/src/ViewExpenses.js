@@ -56,14 +56,25 @@ function ViewExpense() {
     }
     return "";
   };
-
+  // Updated calculateTotalCharges function
   const calculateTotalCharges = (charges, others, rows) => {
     let total = 0;
 
     if (charges) {
       total += parseFloat(charges.documentation || 0);
-      if (charges.freight && rows && rows[0].volume) {
-        total += parseFloat(charges.freight) * parseFloat(rows[0].volume); // Multiply freight by volume
+
+      // FIXED: Sum all volumes instead of using just the first row
+      let totalVolume = 0;
+      if (rows && rows.length > 0) {
+        rows.forEach((row) => {
+          if (row.volume) {
+            totalVolume += parseFloat(row.volume);
+          }
+        });
+      }
+
+      if (charges.freight && totalVolume > 0) {
+        total += parseFloat(charges.freight) * totalVolume;
       } else {
         total += parseFloat(charges.freight || 0);
       }
@@ -81,6 +92,31 @@ function ViewExpense() {
 
     return total;
   };
+
+  // const calculateTotalCharges = (charges, others, rows) => {
+  //   let total = 0;
+
+  //   if (charges) {
+  //     total += parseFloat(charges.documentation || 0);
+  //     if (charges.freight && rows && rows[0].volume) {
+  //       total += parseFloat(charges.freight) * parseFloat(rows[0].volume); // Multiply freight by volume
+  //     } else {
+  //       total += parseFloat(charges.freight || 0);
+  //     }
+
+  //     total += parseFloat(charges.handling || 0);
+  //     total += parseFloat(charges.valuation || 0);
+  //   }
+
+  //   if (others) {
+  //     total += others.reduce(
+  //       (sum, other) => sum + parseFloat(other.amount || 0),
+  //       0
+  //     );
+  //   }
+
+  //   return total;
+  // };
 
   const handleAddExpense = () => {
     setVariableExpenses([...variableExpenses, { name: "", amount: 0 }]);
@@ -353,59 +389,6 @@ function ViewExpense() {
                 }),
               ],
             }),
-
-            // Contact information below logo
-            // new Table({
-            //   width: { size: 100, type: WidthType.PERCENTAGE },
-            //   columnWidths: [10000],
-            //   borders: {
-            //     top: { style: BorderStyle.NONE },
-            //     bottom: { style: BorderStyle.NONE },
-            //     left: { style: BorderStyle.NONE },
-            //     right: { style: BorderStyle.NONE },
-            //     insideHorizontal: { style: BorderStyle.NONE },
-            //     insideVertical: { style: BorderStyle.NONE },
-            //   },
-            //   rows: [
-            //     new TableRow({
-            //       children: [
-            //         new TableCell({
-            //           borders: {
-            //             top: { style: BorderStyle.NONE },
-            //             bottom: { style: BorderStyle.NONE },
-            //             left: { style: BorderStyle.NONE },
-            //             right: { style: BorderStyle.NONE },
-            //             insideHorizontal: { style: BorderStyle.NONE },
-            //             insideVertical: { style: BorderStyle.NONE },
-            //           },
-            //           children: [
-            //             new Paragraph({
-            //               alignment: AlignmentType.CENTER,
-            //               children: [
-            //                 new TextRun({
-            //                   text: "DEL PILAR VILLAGE, MA-A , DAVAO CITY      Mobile No: 09173126897",
-            //                   bold: true,
-            //                   size: 16,
-            //                 }),
-            //               ],
-            //             }),
-            //             new Paragraph({
-            //               alignment: AlignmentType.CENTER,
-            //               children: [
-            //                 new TextRun({
-            //                   text: "Email Add: establantecargo@gmail.com       LandLine No: (082)244-1104",
-            //                   bold: true,
-            //                   size: 16,
-            //                 }),
-            //               ],
-            //             }),
-            //           ],
-            //         }),
-            //       ],
-            //     }),
-            //   ],
-            // }),
-            // Combined logo and contact information in one table
 
             // Space between header and customer info
             new Paragraph({ text: "", spacing: { after: 200 } }),
